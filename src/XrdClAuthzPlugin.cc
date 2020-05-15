@@ -1,6 +1,7 @@
 
 #include "XrdCl/XrdClPlugInInterface.hh"
 #include "XrdCl/XrdClFile.hh"
+#include "XrdCl/XrdClURL.hh"
 #include "XrdVersion.hh"
 
 using namespace XrdCl;
@@ -9,6 +10,35 @@ XrdVERSIONINFO(XrdClGetPlugIn, XrdClAuthzPlugIn)
 
 namespace AuthzPlugIn
 {
+
+std::string
+CustomizeURL(const std::string &input_url)
+{
+    URL parsed_url(input_url);
+    const char *xcache_host = getenv("XCACHE_HOST");
+    const char *xcache_port = getenv("XCACHE_PORT");
+    if (parsed_url.GetHostName() == "xcache" && xcache_host)
+    {
+        parsed_url.SetHostName(xcache_host);
+        if (xcache_port) {
+            int port = 0;
+            try {
+                port = std::stol(xcache_port);
+            } catch (...) {}
+            if (port) parsed_url.SetPort(port);
+        }
+    }
+    const char *token = getenv("BEARER_TOKEN");
+    if (token) {
+        URL::ParamsMap pmap = parsed_url.GetParams();
+        auto iter = pmap.find("authz");
+        if (iter == pmap.end()) {
+            pmap["authz"] = std::string("Bearer ") + token;
+            parsed_url.SetParams(pmap);
+        }
+    }
+    return parsed_url.GetURL();
+}
 
 class File : public XrdCl::FilePlugIn
 {
@@ -22,183 +52,115 @@ public:
         OpenFlags::Flags   flags,
         Access::Mode       mode,
         ResponseHandler   *handler,
-        uint16_t           timeout )
+        uint16_t           timeout)
+    override
     {
-        return m_file.Open(url + "?authz=1234", flags, mode, handler, timeout);
+        return m_file.Open(CustomizeURL(url), flags, mode, handler, timeout);
     }
 
     virtual
-    XRootDStatus Close( ResponseHandler *handler,
-        uint16_t         timeout )
+    XRootDStatus Close(
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
     {
         return m_file.Close(handler, timeout);
     }
 
-    virtual XRootDStatus Stat( bool             force,
+    virtual XRootDStatus Stat(
+        bool             force,
         ResponseHandler *handler,
-        uint16_t         timeout )
+        uint16_t         timeout)
+    override
     {
         return m_file.Stat(force, handler, timeout);
     }
 
+    virtual XRootDStatus Read(
+        uint64_t         offset,
+        uint32_t         size,
+        void            *buffer,
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Read(offset, size, buffer, handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Read
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Read( uint64_t         offset,
-                                 uint32_t         size,
-                                 void            *buffer,
-                                 ResponseHandler *handler,
-                                 uint16_t         timeout )
-      {
-        (void)offset; (void)size; (void)buffer; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus Write(
+        uint64_t         offset,
+        uint32_t         size,
+        const void      *buffer,
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Write(offset, size, buffer, handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl:File PgRead
-      //------------------------------------------------------------------------
-      virtual XRootDStatus PgRead( uint64_t         offset,
-                                   uint32_t         nbpgs,
-                                   void            *buffer,
-                                   ResponseHandler *handler,
-                                   uint16_t         timeout )
-      {
-        (void)offset; (void)nbpgs; (void)buffer; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus Sync(
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Sync(handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Write
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Write( uint64_t         offset,
-                                  uint32_t         size,
-                                  const void      *buffer,
-                                  ResponseHandler *handler,
-                                  uint16_t         timeout )
-      {
-        (void)offset; (void)size; (void)buffer; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus Truncate(
+        uint64_t         size,
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Truncate(size, handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Write
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Write( uint64_t          offset,
-                                  Buffer          &&buffer,
-                                  ResponseHandler  *handler,
-                                  uint16_t          timeout = 0 )
-      {
-        (void)offset; (void)buffer; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus VectorRead(
+        const ChunkList &chunks,
+        void            *buffer,
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.VectorRead(chunks, buffer, handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Sync
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Sync( ResponseHandler *handler,
-                                 uint16_t         timeout )
-      {
-        (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus Fcntl(
+        const Buffer    &arg,
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Fcntl(arg, handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Truncate
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Truncate( uint64_t         size,
-                                     ResponseHandler *handler,
-                                     uint16_t         timeout )
-      {
-        (void)size; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual XRootDStatus Visa(
+        ResponseHandler *handler,
+        uint16_t         timeout)
+    override
+    {
+        return m_file.Visa(handler, timeout);
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::VectorRead
-      //------------------------------------------------------------------------
-      virtual XRootDStatus VectorRead( const ChunkList &chunks,
-                                       void            *buffer,
-                                       ResponseHandler *handler,
-                                       uint16_t         timeout )
-      {
-        (void)chunks; (void)buffer; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual bool IsOpen() const override
+    {
+        return m_file.IsOpen();
+    }
 
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::VectorWrite
-      //------------------------------------------------------------------------
-      virtual XRootDStatus VectorWrite( const ChunkList &chunks,
-                                        ResponseHandler *handler,
-                                        uint16_t         timeout = 0 )
-      {
-        (void)chunks; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
+    virtual bool SetProperty(
+        const std::string &name,
+        const std::string &value)
+    {
+        return m_file.SetProperty(name, value);
+    }
 
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::WriteV
-      //------------------------------------------------------------------------
-      virtual XRootDStatus WriteV( uint64_t            offset,
-                                   const struct iovec *iov,
-                                   int                 iovcnt,
-                                   ResponseHandler    *handler,
-                                   uint16_t            timeout = 0 )
-      {
-        (void)offset; (void)iov; (void)iovcnt; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Fcntl
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Fcntl( const Buffer    &arg,
-                                  ResponseHandler *handler,
-                                  uint16_t         timeout )
-      {
-        (void)arg; (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::Visa
-      //------------------------------------------------------------------------
-      virtual XRootDStatus Visa( ResponseHandler *handler,
-                                 uint16_t         timeout )
-      {
-        (void)handler; (void)timeout;
-        return XRootDStatus( stError, errNotImplemented );
-      }
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::IsOpen
-      //------------------------------------------------------------------------
-      virtual bool IsOpen() const
-      {
-        return false;
-      }
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::SetProperty
-      //------------------------------------------------------------------------
-      virtual bool SetProperty( const std::string &name,
-                                const std::string &value )
-      {
-        (void)name; (void)value;
-        return false;
-      }
-
-      //------------------------------------------------------------------------
-      //! @see XrdCl::File::GetProperty
-      //------------------------------------------------------------------------
-      virtual bool GetProperty( const std::string &name,
-                                std::string &value ) const
-      {
-        (void)name; (void)value;
-        return false;
-      }
+    virtual bool GetProperty(
+        const std::string &name,
+              std::string &value) const
+    override
+    {
+        return m_file.GetProperty(name, value);
+    }
 
 private:
     XrdCl::File m_file;
