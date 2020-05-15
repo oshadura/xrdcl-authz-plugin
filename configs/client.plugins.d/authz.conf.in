@@ -1,0 +1,5 @@
+
+url = root://xcache:1094
+lib = @CMAKE_INSTALL_PREFIX@/@LIB_INSTALL_DIR@/libXrdClAuthzPlugin.so
+enable = true
+

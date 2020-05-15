@@ -15,11 +15,35 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
-message("Plugin version:" ${XROOTD_PLUGIN_VERSION})
-message("Include dirs:" ${XROOTD_INCLUDE_DIRS})
-
 include_directories( "${XROOTD_INCLUDE_DIRS}" )
 add_library(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} MODULE src/XrdClAuthzPlugin.cc)
 target_link_libraries(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} ${XROOTD_LIBRARIES})
 set_target_properties(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} PROPERTIES LINK_FLAGS "-Wl,--version-script=${PROJECT_SOURCE_DIR}/configs/export-symbols")
 
+if (NOT DEFINED LIB_INSTALL_DIR)
+  SET(LIB_INSTALL_DIR "lib")
+endif()
+
+if (NOT DEFINED SYSCONF_INSTALL_DIR)
+  SET(SYSCONF_INSTALL_DIR "etc")
+endif()
+
+configure_file(configs/client.plugins.d/authz.conf.in configs/client.plugins.d/authz.conf)
+
+install(
+  FILES
+  ${CMAKE_BINARY_DIR}/configs/client.plugins.d/authz.conf
+  DESTINATION ${SYSCONF_INSTALL_DIR}/xrootd/client.plugins.d/
+  PERMISSIONS
+  OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
+
+install(
+  TARGETS XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION}
+  LIBRARY DESTINATION ${LIB_INSTALL_DIR} )
+
+set_target_properties(
+  XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION}
+  PROPERTIES
+  VERSION   ""
+  SOVERSION ""
+  LINK_INTERFACE_LIBRARIES "" )
