@@ -1,4 +1,6 @@
 
+#include <fcntl.h>
+
 #include "XrdCl/XrdClPlugInInterface.hh"
 #include "XrdCl/XrdClFile.hh"
 #include "XrdCl/XrdClURL.hh"
@@ -10,6 +12,91 @@ XrdVERSIONINFO(XrdClGetPlugIn, XrdClAuthzPlugIn)
 
 namespace AuthzPlugIn
 {
+
+std::string
+NormalizeToken(const std::string &input_token)
+{
+    static const std::string whitespace = " \t\f\n\v\r";
+    static const std::string nonheader_whitespace = "\r\n";
+    auto begin = input_token.find_first_not_of(whitespace);
+    if (begin == std::string::npos) {return "";}
+
+    std::string token = input_token.substr(begin);
+    auto end = token.find_last_not_of(whitespace);
+    token = token.substr(0, end + 1);
+
+        // If non-permitted header characters are present ("\r\n"),
+        // then this token is not permitted.
+    if (token.find(nonheader_whitespace) != std::string::npos) {return "";}
+
+    return token;
+}
+
+std::string
+FindTokenInFile(const std::string &token_file)
+{
+    printf("Looking for token in file %s\n", token_file.c_str());
+    int fd = open(token_file.c_str(), O_RDONLY);
+    if (fd == -1) {
+        return "";
+    }
+
+    static const size_t max_size = 16384;
+
+    std::vector<char> input_buffer;
+    input_buffer.reserve(max_size);
+
+    ssize_t cur_size = 0;
+
+    ssize_t retval;
+    do {
+        retval = read(fd, &input_buffer[cur_size], max_size - cur_size);
+        if (retval != -1) cur_size += retval;
+    } while ((retval > 0) || ((retval == -1) && (errno == EAGAIN || errno == EINTR)));
+
+    close(fd);
+
+    if (retval == -1) {
+        return "";
+    }
+
+    std::string token(&input_buffer[0], cur_size);
+
+    return NormalizeToken(token);
+}
+
+std::string
+DiscoverToken()
+{
+    const char *bearer_token = getenv("BEARER_TOKEN");
+    std::string token;
+    if (bearer_token && *bearer_token &&
+        !(token = NormalizeToken(bearer_token)).empty())
+     {
+        return token;
+    }
+
+    const char *bearer_token_file = getenv("BEARER_TOKEN_FILE");
+    if (bearer_token_file &&
+        !(token = FindTokenInFile(bearer_token_file)).empty())
+    {
+        return token;
+    }
+
+    uid_t euid = geteuid();
+    std::string fname = "/bt_u";
+    fname += std::to_string(euid);
+
+    const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+    if (xdg_runtime_dir) {
+        std::string xdg_token_file = std::string(xdg_runtime_dir) + fname;
+        if (!(token = FindTokenInFile(xdg_token_file)).empty()) {
+            return token;
+        }
+    }
+
+    return FindTokenInFile("/tmp" + fname);
+}
 
 std::string
 CustomizeURL(const std::string &input_url)
@@ -28,8 +115,8 @@ CustomizeURL(const std::string &input_url)
             if (port) parsed_url.SetPort(port);
         }
     }
-    const char *token = getenv("BEARER_TOKEN");
-    if (token) {
+    auto token = DiscoverToken();
+    if (!token.empty()) {
         URL::ParamsMap pmap = parsed_url.GetParams();
         auto iter = pmap.find("authz");
         if (iter == pmap.end()) {
@@ -170,7 +257,7 @@ class FileSystem : public XrdCl::FileSystemPlugIn
 {
 public:
 
-    FileSystem(const std::string &url) : m_fs(CustomizeUrl(url)) {}
+    FileSystem(const std::string &url) : m_fs(CustomizeURL(url)) {}
 
     virtual ~FileSystem() {}
 
