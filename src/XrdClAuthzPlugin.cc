@@ -170,7 +170,7 @@ class FileSystem : public XrdCl::FileSystemPlugIn
 {
 public:
 
-    FileSystem(const std::string &url) : m_fs(url) {}
+    FileSystem(const std::string &url) : m_fs(CustomizeUrl(url)) {}
 
     virtual ~FileSystem() {}
 
