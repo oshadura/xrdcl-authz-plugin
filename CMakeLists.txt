@@ -20,6 +20,9 @@ add_library(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} MODULE src/XrdClAuthzPlugi
 target_link_libraries(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} ${XROOTD_LIBRARIES})
 set_target_properties(XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION} PROPERTIES LINK_FLAGS "-Wl,--version-script=${PROJECT_SOURCE_DIR}/configs/export-symbols")
 
+add_library(XrdSecunix-${XROOTD_PLUGIN_VERSION} MODULE src/XrdSecProtocolunix.cc)
+set_target_properties(XrdSecunix-${XROOTD_PLUGIN_VERSION} PROPERTIES LINK_FLAGS "-Wl,--version-script=${PROJECT_SOURCE_DIR}/configs/export-symbols-anon")
+
 if (NOT DEFINED LIB_INSTALL_DIR)
   SET(LIB_INSTALL_DIR "lib")
 endif()
@@ -41,8 +44,19 @@ install(
   TARGETS XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION}
   LIBRARY DESTINATION ${LIB_INSTALL_DIR} )
 
+install(
+  TARGETS XrdSecunix-${XROOTD_PLUGIN_VERSION}
+  LIBRARY DESTINATION ${LIB_INSTALL_DIR}/xrdcl-authz-plugin )
+
 set_target_properties(
   XrdClAuthzPlugin-${XROOTD_PLUGIN_VERSION}
+  PROPERTIES
+  VERSION   ""
+  SOVERSION ""
+  LINK_INTERFACE_LIBRARIES "" )
+
+set_target_properties(
+  XrdSecunix-${XROOTD_PLUGIN_VERSION}
   PROPERTIES
   VERSION   ""
   SOVERSION ""
