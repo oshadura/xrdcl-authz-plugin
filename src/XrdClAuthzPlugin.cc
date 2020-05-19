@@ -120,7 +120,7 @@ CustomizeURL(const std::string &input_url)
         URL::ParamsMap pmap = parsed_url.GetParams();
         auto iter = pmap.find("authz");
         if (iter == pmap.end()) {
-            pmap["authz"] = std::string("Bearer ") + token;
+            pmap["authz"] = std::string("Bearer%20") + token;
             parsed_url.SetParams(pmap);
         }
     }
