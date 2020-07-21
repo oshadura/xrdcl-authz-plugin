@@ -34,8 +34,10 @@ NormalizeToken(const std::string &input_token)
 
 std::string
 FindTokenInFile(const std::string &token_file)
-{
-    printf("Looking for token in file %s\n", token_file.c_str());
+{   
+    #ifdef DEBUG
+        printf("Looking for token in file %s\n", token_file.c_str());
+    #endif
     int fd = open(token_file.c_str(), O_RDONLY);
     if (fd == -1) {
         return "";
