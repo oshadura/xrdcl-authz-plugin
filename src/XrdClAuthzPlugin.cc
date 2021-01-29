@@ -34,7 +34,7 @@ NormalizeToken(const std::string &input_token)
 
 std::string
 FindTokenInFile(const std::string &token_file)
-{   
+{
     #ifdef DEBUG
         printf("Looking for token in file %s\n", token_file.c_str());
     #endif
@@ -426,13 +426,20 @@ private:
 
 class Factory
 {
+std::unique_ptr<FileSystemPlugIn> CurFS;
+
 public:
+
 
     virtual ~Factory() {}
 
     virtual FilePlugIn *CreateFile( const std::string &url ) {return new File();}
 
-    virtual FileSystemPlugIn *CreateFileSystem( const std::string &url ) {return new FileSystem(url);}
+    virtual FileSystemPlugIn *CreateFileSystem( const std::string &url ) {
+      if (!CurFS)
+         CurFS.reset(new FileSystem(url));
+      return CurFS.get();
+   }
 };
 
 }
