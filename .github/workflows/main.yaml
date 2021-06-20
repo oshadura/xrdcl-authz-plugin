@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  run:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }} (Miniconda)
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+
+    - name: Conda info
+      shell: bash -l {0}
+      run: conda info
+
+    - name: "Init conda"
+      shell: bash -l {0}
+      run: |
+          conda init bash
+    - name: Conda install dependencies
+      shell: bash -l {0}
+      run: |
+           conda create -n xrootd -y -c conda-forge xrootd cmake
+    - name: Configure and build
+      shell: bash -l {0}
+      run: |
+           conda activate xrootd
+           mkdir -p build && cd build
+           cmake ..
+           cmake --build .
